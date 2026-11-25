@@ -1,6 +1,6 @@
 // Service worker: makes the app open instantly and work offline (showing the last known prices).
 // Bump VERSION whenever app files change so phones pick up the new version.
-const VERSION = 'v0.3.0';
+const VERSION = 'v0.4.0';
 const CACHE = `portfolio-${VERSION}`;
 const SHELL = [
   './',

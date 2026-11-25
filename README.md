@@ -5,6 +5,7 @@ A private stock and crypto portfolio tracker for your iPhone.
 - Total value, today's change and profit/loss for the whole portfolio and for each holding
 - Imports from **DEGIRO**, **Bitvavo**, **Saxo** and **EquatePlus** (CSV or Excel), plus manual entry
 - Live prices: crypto from Bitvavo, stocks from Finnhub or Yahoo Finance
+- **Cash to invest**: add your bank/broker balances by hand; shown separately with a "total incl. cash"
 - **Your data stays on your phone.** There is no server, account or tracking.
 - Works offline (shows the last known prices) and has a privacy button that blurs all amounts
 

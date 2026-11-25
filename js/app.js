@@ -77,7 +77,10 @@ function renderPortfolio() {
   const unvested = holdings.filter((h) => !h.closed && h.asset.unvested);
   const closed = holdings.filter((h) => h.closed);
 
-  if (!holdings.length) {
+  const cash = state.cash || [];
+  const cashEur = cash.reduce((s, c) => s + (Number(c.amountEur) || 0), 0);
+
+  if (!holdings.length && !cash.length) {
     el.innerHTML = `
       <div class="empty">
         <div class="glyph">📈</div>
@@ -87,18 +90,20 @@ function renderPortfolio() {
           <button class="btn" data-go="import">Import file</button>
           <button class="btn secondary" data-add>Add manually</button>
         </div>
+        <div class="btn-row"><button class="btn secondary" data-cash>Add cash to invest</button></div>
       </div>`;
     $('[data-go]', el).onclick = () => show('import');
     $('[data-add]', el).onclick = () => openTransactionForm();
+    $('[data-cash]', el).onclick = () => openCashForm();
     return;
   }
 
   const t = totals(holdings);
 
   // allocation by type
-  const byType = { stock: 0, etf: 0, crypto: 0 };
+  const byType = { stock: 0, etf: 0, crypto: 0, cash: cashEur };
   open.forEach((h) => { byType[h.asset.type in byType ? h.asset.type : 'stock'] += h.valueEur ?? 0; });
-  const typeLabels = { stock: 'Stocks', etf: 'ETFs', crypto: 'Crypto' };
+  const typeLabels = { stock: 'Stocks', etf: 'ETFs', crypto: 'Crypto', cash: 'Cash' };
   const allocTotal = Object.values(byType).reduce((a, b) => a + b, 0);
   const alloc = allocTotal > 0
     ? `<div class="alloc">
@@ -124,6 +129,7 @@ function renderPortfolio() {
       <div class="meta">
         Invested <span class="money">${fmtEur(t.costEur)}</span>
         ${Math.abs(t.realizedEur) > 0.005 ? ` · Realised <span class="money ${tone(t.realizedEur)}">${fmtSignedEur(t.realizedEur)}</span>` : ''}
+        ${cash.length ? `<br>Cash to invest <span class="money">${fmtEur(cashEur)}</span> · Total incl. cash <strong class="money">${fmtEur(t.valueEur + cashEur)}</strong>` : ''}
         <br>Prices updated ${timeAgo(state.lastRefresh)}
         ${t.unpricedCount ? ` · <span class="warn">${t.unpricedCount} without price</span>` : ''}
       </div>
@@ -131,10 +137,61 @@ function renderPortfolio() {
     ${notice}
     ${alloc}
     <ul class="list">${open.map(holdingRow).join('')}</ul>
+    <div class="section-title">Cash to invest${cash.length ? ` · <span class="money">${fmtEur(cashEur)}</span>` : ''}</div>
+    <ul class="list">
+      ${cash.map((c) => `<li><button class="row" data-cash="${esc(c.id)}">
+        <span class="avatar cash">€</span>
+        <span class="grow"><div class="name">${esc(c.name)}</div><div class="sub">Updated ${fmtDate(c.updated)}</div></span>
+        <span class="right"><div class="v money">${fmtEur(Number(c.amountEur) || 0)}</div></span>
+      </button></li>`).join('')}
+      <li><button class="row add-row" data-cash-add>+ Add cash account</button></li>
+    </ul>
     ${unvested.length ? `<div class="section-title">Unvested · not in total · <span class="money">${fmtEur(t.unvestedEur)}</span></div><ul class="list">${unvested.map(holdingRow).join('')}</ul>` : ''}
     ${closed.length ? `<details class="closed"><summary>Closed positions (${closed.length})</summary><ul class="list">${closed.map(holdingRow).join('')}</ul></details>` : ''}
   `;
   el.querySelectorAll('[data-asset]').forEach((b) => (b.onclick = () => openHolding(b.dataset.asset)));
+  el.querySelectorAll('[data-cash]').forEach((b) => (b.onclick = () => openCashForm(b.dataset.cash)));
+  $('[data-cash-add]', el).onclick = () => openCashForm();
+}
+
+/** Add or edit a cash account (bank or broker money available to invest). */
+function openCashForm(id) {
+  const existing = (state.cash || []).find((c) => c.id === id);
+  openSheet(existing ? existing.name : 'Add cash', `
+    <form id="cash-form">
+      <label class="field"><span>Name</span><input name="name" required value="${esc(existing?.name || '')}" placeholder="e.g. ING savings, Saxo cash"></label>
+      <label class="field"><span>Amount (EUR)</span><input name="amount" inputmode="decimal" required value="${existing ? String(existing.amountEur).replace('.', ',') : ''}" placeholder="0,00"></label>
+      <p class="hint">Money available to invest. Update it whenever your balance changes.</p>
+      <button class="btn block">${existing ? 'Save' : 'Add'}</button>
+      ${existing ? '<div class="btn-row"><button type="button" class="btn danger" data-del>Delete</button></div>' : ''}
+    </form>
+  `, (root) => {
+    const form = $('#cash-form', root);
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const name = form.elements.name.value.trim();
+      const raw = form.elements.amount.value.trim().replace(/[€\s]/g, '');
+      // accept 1.234,56 / 1234,56 / 1234.56
+      const dutchThousands = /^-?\d{1,3}(\.\d{3})+$/.test(raw); // "1.234" = 1234
+      const amount = Number(raw.includes(',') || dutchThousands ? raw.replace(/\./g, '').replace(',', '.') : raw);
+      if (!name || !Number.isFinite(amount)) return toast('Enter a name and an amount');
+      state.cash ??= [];
+      const entry = { id: existing?.id || 'cash-' + Date.now().toString(36), name, amountEur: amount, updated: new Date().toISOString() };
+      state.cash = existing ? state.cash.map((c) => (c.id === existing.id ? entry : c)) : [...state.cash, entry];
+      persist();
+      sheet.close();
+      render();
+      toast('Saved');
+    };
+    const del = $('[data-del]', root);
+    if (del) del.onclick = () => {
+      if (!confirm(`Delete ${existing.name}?`)) return;
+      state.cash = state.cash.filter((c) => c.id !== existing.id);
+      persist();
+      sheet.close();
+      render();
+    };
+  });
 }
 
 function holdingRow(h) {
@@ -472,7 +529,7 @@ function renderSettings() {
 
     <div class="section-title">Your data</div>
     <div class="card">
-      <p>Everything is stored on this device only: ${state.transactions.length} transactions, ${Object.keys(state.assets).length} assets. Make a backup now and then (it never includes your API keys).</p>
+      <p>Everything is stored on this device only: ${state.transactions.length} transactions, ${Object.keys(state.assets).length} assets, ${(state.cash || []).length} cash accounts. Make a backup now and then (it never includes your API keys).</p>
       <div class="btn-row">
         <button class="btn secondary" data-backup>Backup</button>
         <label class="btn secondary" for="restore-file">Restore</label>
@@ -480,7 +537,7 @@ function renderSettings() {
       </div>
       <div class="btn-row"><button class="btn danger" data-wipe>Delete all data</button></div>
     </div>
-    <p class="hint" style="text-align:center;margin-top:18px">Portfolio · v0.3</p>`;
+    <p class="hint" style="text-align:center;margin-top:18px">Portfolio · v0.4</p>`;
 
   $('#set-form', el).onsubmit = (e) => {
     e.preventDefault();

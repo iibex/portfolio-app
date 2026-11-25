@@ -13,6 +13,7 @@
   --crypto: #e8890c;
   --stock: #0a66d9;
   --etf: #7a4fd6;
+  --cash: #0f8a7e;
   --radius: 16px;
   --tabbar-h: 58px;
   color-scheme: light dark;
@@ -33,6 +34,7 @@
     --crypto: #ffa63d;
     --stock: #4c9dff;
     --etf: #a983ff;
+    --cash: #2ec4b0;
   }
 }
 
@@ -131,6 +133,8 @@ main { padding: 4px 16px 24px; max-width: 680px; margin: 0 auto; }
 .avatar.crypto { background: var(--crypto); }
 .avatar.stock { background: var(--stock); }
 .avatar.etf { background: var(--etf); }
+.avatar.cash { background: var(--cash); font-size: 18px; }
+.add-row { color: var(--accent); font-weight: 600; }
 .grow { flex: 1; min-width: 0; }
 .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sub { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

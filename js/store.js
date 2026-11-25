@@ -12,6 +12,7 @@ export const defaultSettings = () => ({
 export const emptyState = () => ({
   version: 1,
   transactions: [],
+  cash: [], // [{ id, name, amountEur, updated }] money available to invest
   assets: {},
   prices: {},
   fx: null,
@@ -39,6 +40,7 @@ export function normalise(data) {
     ...base,
     ...data,
     transactions: Array.isArray(data.transactions) ? data.transactions : [],
+    cash: Array.isArray(data.cash) ? data.cash : [],
     assets: data.assets && typeof data.assets === 'object' ? data.assets : {},
     prices: data.prices && typeof data.prices === 'object' ? data.prices : {},
     settings: { ...base.settings, ...(data.settings || {}) },
