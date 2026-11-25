@@ -1,6 +1,6 @@
 // Service worker: makes the app open instantly and work offline (showing the last known prices).
 // Bump VERSION whenever app files change so phones pick up the new version.
-const VERSION = 'v0.4.0';
+const VERSION = 'v0.4.1';
 const CACHE = `portfolio-${VERSION}`;
 const SHELL = [
   './',
@@ -40,8 +40,10 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return; // price APIs: always network
   // Network first (so updates arrive), cache as offline fallback.
+  // cache: 'no-cache' makes the phone ask GitHub "has this file changed?" every time, instead of
+  // reusing its own copy for up to 10 minutes.
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request.url, { cache: 'no-cache', credentials: 'same-origin' })
       .then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(e.request, copy));

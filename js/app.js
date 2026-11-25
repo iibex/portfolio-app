@@ -537,7 +537,7 @@ function renderSettings() {
       </div>
       <div class="btn-row"><button class="btn danger" data-wipe>Delete all data</button></div>
     </div>
-    <p class="hint" style="text-align:center;margin-top:18px">Portfolio · v0.4</p>`;
+    <p class="hint" style="text-align:center;margin-top:18px">Portfolio · v0.4.1</p>`;
 
   $('#set-form', el).onsubmit = (e) => {
     e.preventDefault();
@@ -626,6 +626,19 @@ render();
 startAutoRefresh();
 doRefresh();
 
+// Updates: check for a new version on start and whenever the app comes back to the foreground,
+// and reload automatically once the new version has taken over.
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return; // first install: nothing to refresh
+    reloading = true;
+    location.reload();
+  });
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update().catch(() => {});
+    });
+  }).catch(() => {});
 }
