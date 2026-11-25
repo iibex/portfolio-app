@@ -75,7 +75,9 @@ export function parseDate(dateStr, timeStr = '') {
   let mm;
   if ((mm = d.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/))) [, y, m, day] = mm;
   else if ((mm = d.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/))) [, day, m, y] = mm;
-  else {
+  else if ((mm = d.match(/^(\d{1,2})[-\s]([a-z]{3,})\.?[-\s](\d{4})/i)) && monthIndex(mm[2])) {
+    day = mm[1]; m = monthIndex(mm[2]); y = mm[3];
+  } else {
     const parsed = new Date(d);
     if (Number.isNaN(parsed.getTime())) return null;
     y = parsed.getFullYear(); m = parsed.getMonth() + 1; day = parsed.getDate();
@@ -84,6 +86,12 @@ export function parseDate(dateStr, timeStr = '') {
   const pad = (n) => String(n).padStart(2, '0');
   const time = tm ? `${pad(tm[1])}:${tm[2]}:${pad(tm[3] || 0)}` : '00:00:00';
   return `${y}-${pad(m)}-${pad(day)}T${time}`;
+}
+
+// Dutch + English month abbreviations, e.g. Saxo's "19-nov-2026".
+const MONTHS = { jan: 1, feb: 2, mrt: 3, mar: 3, apr: 4, mei: 5, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, okt: 10, oct: 10, nov: 11, dec: 12 };
+function monthIndex(name) {
+  return MONTHS[name.slice(0, 3).toLowerCase()] || null;
 }
 
 /** Normalise a header name for matching. */

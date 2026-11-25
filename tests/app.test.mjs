@@ -171,3 +171,44 @@ test('findTicker via Finnhub marks US listings as USD', async () => {
   const r = await findTicker({ isin: 'NL0010273215', currency: 'EUR' }, { finnhubKey: 'x' }, fakeFetch);
   assert.deepEqual(r, { symbol: 'ASML', currency: 'USD' });
 });
+
+test('Saxo positions import', async () => {
+  const { saxoToTicker } = await import('../js/importers/saxo.js');
+  assert.equal(saxoToTicker('ANT:xnas'), 'ANT');
+  assert.equal(saxoToTicker('ASML:xams'), 'ASML.AS');
+  assert.equal(saxoToTicker('SAP:xetr'), 'SAP.DE');
+
+  const r = importText(fixture('saxo-posities.csv'));
+  assert.equal(r.broker, 'Saxo');
+  assert.equal(r.transactions.length, 3); // subtotal rows skipped
+  assert.ok(r.skipped.some((s) => /short/.test(s.reason)));
+
+  const apple = r.transactions.find((t) => t.assetId === 'isin:US0378331005');
+  assert.equal(apple.quantity, 10);
+  assert.equal(apple.date, '2025-03-03T15:31:02');
+  close(apple.totalEur, 1840 * (200.5 / 200)); // cost incl. trading costs
+  assert.equal(r.assets['isin:US0378331005'].symbol, 'AAPL');
+  assert.equal(r.assets['isin:US0378331005'].currency, 'USD');
+  assert.equal(r.assets['isin:NL0010273215'].symbol, 'ASML.AS');
+  assert.equal(r.assets['isin:IE00B4L5Y983'].type, 'etf');
+  assert.equal(r.transactions.find((t) => t.assetId === 'isin:IE00B4L5Y983').date, '2024-05-01T10:00:00');
+
+  // export prices give a value straight away
+  close(r.prices['isin:US0378331005'].priceEur, 210);
+  close(r.prices['isin:US0378331005'].prevCloseEur, (2100 - 24.5) / 10);
+});
+
+test('re-importing Saxo positions replaces the previous snapshot', () => {
+  const state = emptyState();
+  mergeImport(state, importText(fixture('saxo-posities.csv')));
+  // newer export: Apple position grew to 15 shares, ASML sold
+  const newer = fixture('saxo-posities.csv')
+    .replace('"Apple Inc.","Long","USD","10"', '"Apple Inc.","Long","USD","15"')
+    .split('\n').filter((l) => !l.startsWith('"ASML')).join('\n');
+  const res = mergeImport(state, importText(newer));
+  assert.equal(res.replaced, 3);
+  assert.equal(res.added, 2);
+  const h = computeHoldings(state.transactions, state.assets, state.prices);
+  assert.equal(h.find((x) => x.assetId === 'isin:US0378331005').quantity, 15);
+  assert.equal(h.find((x) => x.assetId === 'isin:NL0010273215'), undefined);
+});

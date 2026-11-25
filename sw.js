@@ -1,6 +1,6 @@
 // Service worker: makes the app open instantly and work offline (showing the last known prices).
 // Bump VERSION whenever app files change so phones pick up the new version.
-const VERSION = 'v0.1.0';
+const VERSION = 'v0.2.0';
 const CACHE = `portfolio-${VERSION}`;
 const SHELL = [
   './',
@@ -16,6 +16,7 @@ const SHELL = [
   'js/importers/bitvavo.js',
   'js/importers/degiro.js',
   'js/importers/generic.js',
+  'js/importers/saxo.js',
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/apple-touch-icon.png',

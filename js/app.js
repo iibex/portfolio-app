@@ -160,7 +160,7 @@ function openHolding(assetId) {
   openSheet(a.name || a.symbol, `
     <dl class="stats">
       <div><dt>Value</dt><dd class="money">${fmtEur(h.valueEur)}</dd></div>
-      <div><dt>Price</dt><dd>${fmtPrice(h.priceEur)}${h.priceSource === 'manual' ? ' <span class="badge">manual</span>' : ''}</dd></div>
+      <div><dt>Price</dt><dd>${fmtPrice(h.priceEur)}${h.priceSource === 'manual' ? ' <span class="badge">manual</span>' : h.priceSource === 'Saxo export' ? ' <span class="badge">from export</span>' : ''}</dd></div>
       <div><dt>Quantity</dt><dd class="money">${fmtQty(h.quantity)}</dd></div>
       <div><dt>Avg. cost</dt><dd>${h.quantity ? fmtPrice(h.costEur / h.quantity) : '–'}</dd></div>
       <div><dt>Invested</dt><dd class="money">${fmtEur(h.costEur)}</dd></div>
@@ -371,6 +371,7 @@ function openTransactionForm() {
 const BROKER_HELP = [
   { name: 'DEGIRO', steps: ['Open DEGIRO in a browser (the web version)', 'Inbox → Transactions', 'Choose a start date far in the past', 'Export → CSV'] },
   { name: 'Bitvavo', steps: ['Open Bitvavo in a browser', 'Account → Transaction history', 'Export → CSV (all time)'] },
+  { name: 'Saxo', steps: ['Open Saxo (web or app) → Portfolio → Posities', 'Export the positions list as CSV', 'Import it here. Re-import a newer file any time: your Saxo positions are replaced, not added twice'] },
 ];
 
 function renderImport() {
@@ -384,6 +385,7 @@ function renderImport() {
           <option value="">Detect automatically</option>
           <option value="degiro">DEGIRO</option>
           <option value="bitvavo">Bitvavo</option>
+          <option value="saxo">Saxo (positions)</option>
           <option value="generic">Portfolio template</option>
         </select>
       </label>
@@ -409,11 +411,14 @@ function renderImport() {
     try {
       const text = await file.text();
       const result = importText(text, $('#imp-broker', el).value || undefined);
-      const { added, duplicates } = mergeImport(state, result);
+      const { added, duplicates, replaced } = mergeImport(state, result);
       persist();
       out.innerHTML = `
         <div class="notice" style="margin:14px 0 0;background:var(--up-bg)">
-          <strong>${esc(result.broker)}: ${added} transaction${added === 1 ? '' : 's'} imported</strong>
+          <strong>${esc(result.broker)}: ${result.snapshot
+            ? `${added} position${added === 1 ? '' : 's'} imported`
+            : `${added} transaction${added === 1 ? '' : 's'} imported`}</strong>
+          ${replaced ? '<br>Replaced your previous Saxo positions with this newer export' : ''}
           ${duplicates ? `<br>${duplicates} already imported earlier (skipped)` : ''}
           ${result.skipped.length ? `<details><summary>${result.skipped.length} row(s) ignored</summary><ul>${result.skipped.slice(0, 50).map((s) => `<li>Line ${s.line}: ${esc(s.reason)}</li>`).join('')}</ul></details>` : ''}
         </div>`;
@@ -472,7 +477,7 @@ function renderSettings() {
       </div>
       <div class="btn-row"><button class="btn danger" data-wipe>Delete all data</button></div>
     </div>
-    <p class="hint" style="text-align:center;margin-top:18px">Portfolio · v0.1</p>`;
+    <p class="hint" style="text-align:center;margin-top:18px">Portfolio · v0.2</p>`;
 
   $('#set-form', el).onsubmit = (e) => {
     e.preventDefault();
