@@ -87,7 +87,7 @@ function effectivePrice(asset, cached) {
 }
 
 export function totals(holdings) {
-  const open = holdings.filter((h) => !h.closed);
+  const open = holdings.filter((h) => !h.closed && !h.asset?.unvested);
   const sum = (arr, k) => arr.reduce((s, h) => s + (h[k] ?? 0), 0);
   const valueEur = sum(open, 'valueEur');
   const costEur = sum(open, 'costEur');
@@ -103,6 +103,7 @@ export function totals(holdings) {
     unrealizedEur,
     unrealizedPct: pricedCost > 0 ? unrealizedEur / pricedCost : null,
     realizedEur: sum(holdings, 'realizedEur'),
+    unvestedEur: sum(holdings.filter((h) => !h.closed && h.asset?.unvested), 'valueEur'),
     dayChangeEur,
     dayChangePct: dayChangeEur != null && dayBase > 0 ? dayChangeEur / dayBase : null,
     openCount: open.length,

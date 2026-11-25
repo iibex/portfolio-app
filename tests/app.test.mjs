@@ -212,3 +212,45 @@ test('re-importing Saxo positions replaces the previous snapshot', () => {
   assert.equal(h.find((x) => x.assetId === 'isin:US0378331005').quantity, 15);
   assert.equal(h.find((x) => x.assetId === 'isin:NL0010273215'), undefined);
 });
+
+test('xlsx reader + EquatePlus import', async () => {
+  const { readXlsx, excelDate } = await import('../js/xlsx.js');
+  const { importRows } = await import('../js/importers/index.js');
+  assert.equal(excelDate(44837), '2022-10-03T00:00:00');
+
+  const rows = await readXlsx(readFileSync(new URL('./fixtures/equate-portfolio.xlsx', import.meta.url)));
+  assert.equal(rows[6][0], 'Allocatiedatum'); // header on row 7
+  const r = importRows(rows);
+  assert.equal(r.broker, 'EquatePlus');
+  assert.equal(r.transactions.length, 3); // 2 share lots + 1 outstanding RSU lot
+  assert.equal(r.skipped.length, 2); // lots with nothing outstanding
+
+  const shares = r.transactions.filter((t) => t.assetId === 'isin:NL0010273215');
+  assert.equal(shares.length, 2);
+  assert.equal(shares[0].date, '2022-10-03T00:00:00');
+  close(shares[0].totalEur + shares[1].totalEur, 12 * 500 + 4 * 550.25);
+  assert.equal(r.assets['isin:NL0010273215'].symbol, 'ASML.AS');
+
+  const rsu = r.transactions.find((t) => t.assetId.startsWith('unvested:'));
+  assert.equal(rsu.quantity, 30);
+  assert.equal(rsu.totalEur, 0);
+  assert.equal(r.assets[rsu.assetId].unvested, true);
+  assert.equal(r.assets[rsu.assetId].symbol, 'ASML.AS'); // RSUs linked to the employer's stock
+
+  // totals exclude unvested units
+  const state = emptyState();
+  mergeImport(state, r);
+  const t = totals(computeHoldings(state.transactions, state.assets, state.prices));
+  close(t.valueEur, 16 * 700);
+  close(t.unvestedEur, 30 * 700);
+
+  // re-import replaces, never doubles
+  const again = mergeImport(state, importRows(rows));
+  assert.equal(again.replaced, 3);
+  assert.equal(state.transactions.length, 3);
+});
+
+test('header row is found below a title block in CSV too', () => {
+  const csv = 'My export\n\n' + fixture('degiro-nl.csv');
+  assert.equal(importText(csv).transactions.length, 4);
+});

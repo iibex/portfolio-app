@@ -83,7 +83,7 @@ async function fetchStockYahoo(fetchImpl, symbol, proxyUrl) {
  * (e.g. Finnhub often returns the US listing, which is priced in USD).
  */
 export async function findTicker(asset, settings, fetchImpl = fetch) {
-  const q = asset.isin || asset.name;
+  const q = asset.isin || asset.lookup || asset.name;
   if (!q) return null;
   if (settings.stockProvider === 'yahoo' && settings.proxyUrl) {
     const data = await getJSON(fetchImpl, `${settings.proxyUrl.replace(/\/+$/, '')}/search?q=${encodeURIComponent(q)}`);

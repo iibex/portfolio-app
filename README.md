@@ -3,7 +3,7 @@
 A private stock and crypto portfolio tracker for your iPhone.
 
 - Total value, today's change and profit/loss for the whole portfolio and for each holding
-- Imports from **DEGIRO**, **Bitvavo** and **Saxo** (EquatePlus comes next), plus manual entry
+- Imports from **DEGIRO**, **Bitvavo**, **Saxo** and **EquatePlus** (CSV or Excel), plus manual entry
 - Live prices: crypto from Bitvavo, stocks from Finnhub or Yahoo Finance
 - **Your data stays on your phone.** There is no server, account or tracking.
 - Works offline (shows the last known prices) and has a privacy button that blurs all amounts
@@ -49,13 +49,16 @@ DEGIRO exports only contain ISIN codes. The app looks up tickers automatically o
 
 ## 4. Import your trades
 
-**Import** tab → choose the CSV file (from Files / iCloud Drive).
+**Import** tab → choose the CSV or Excel file (from Files / iCloud Drive).
 
 - **DEGIRO**: web version → Inbox → *Transactions* → pick an early start date → Export → CSV
 - **Bitvavo**: web version → Account → *Transaction history* → Export CSV
 - **Saxo**: Portfolio → *Posities* → export as CSV. This is a snapshot of your current positions, so
   import a newer file whenever you like: your Saxo positions are **replaced**, never counted twice.
   The values in the export show right away; live prices take over once a price source is set.
+- **EquatePlus**: Portfolio → export the portfolio details (Excel `.xlsx`) and import it as is.
+  Shares count as holdings with the cost basis from the file. **Unvested RSUs** are shown in a
+  separate section and are *not* included in the total. Re-importing replaces the previous snapshot.
 - **Any other broker**: use **Get template**, fill it in Numbers/Excel, export as CSV.
 
 Importing the same file again is safe (duplicates are skipped).
@@ -85,6 +88,7 @@ js/app.js              screens and interaction
 js/portfolio.js        holdings and profit/loss maths (pure)
 js/prices.js           price + FX fetching
 js/importers/*.js      one parser per broker
+js/xlsx.js             tiny built-in Excel (.xlsx) reader
 worker/price-proxy.js  optional Cloudflare Worker for Yahoo prices
 tests/                 unit tests + made-up sample exports
 ```
@@ -98,8 +102,8 @@ When you change app files, bump `VERSION` in `sw.js` so phones load the new vers
 
 ## Roadmap
 
-1. ✅ MVP: holdings, live prices, DEGIRO / Bitvavo / Saxo / template import
-2. EquatePlus importer · value-over-time chart
+1. ✅ MVP: holdings, live prices, DEGIRO / Bitvavo / Saxo / EquatePlus / template import
+2. Value-over-time chart
 3. News per holding
 4. News & social media "buzz" scanning with sentiment (needs a small backend)
 5. Trends, strategies and price alerts

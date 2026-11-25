@@ -1,7 +1,7 @@
 import * as store from './store.js';
 import { computeHoldings, totals } from './portfolio.js';
 import { refreshPrices, findTicker } from './prices.js';
-import { importText, mergeImport, planned } from './importers/index.js';
+import { importFile, mergeImport, planned } from './importers/index.js';
 import { TEMPLATE_HEADER, TEMPLATE_EXAMPLE } from './importers/generic.js';
 import { fmtEur, fmtEurBig, fmtSignedEur, fmtPct, fmtQty, fmtPrice, fmtDate, timeAgo, tone, esc } from './format.js';
 
@@ -73,7 +73,8 @@ function render() {
 function renderPortfolio() {
   const el = $('#view-portfolio');
   const holdings = holdingsNow();
-  const open = holdings.filter((h) => !h.closed);
+  const open = holdings.filter((h) => !h.closed && !h.asset.unvested);
+  const unvested = holdings.filter((h) => !h.closed && h.asset.unvested);
   const closed = holdings.filter((h) => h.closed);
 
   if (!holdings.length) {
@@ -130,6 +131,7 @@ function renderPortfolio() {
     ${notice}
     ${alloc}
     <ul class="list">${open.map(holdingRow).join('')}</ul>
+    ${unvested.length ? `<div class="section-title">Unvested · not in total · <span class="money">${fmtEur(t.unvestedEur)}</span></div><ul class="list">${unvested.map(holdingRow).join('')}</ul>` : ''}
     ${closed.length ? `<details class="closed"><summary>Closed positions (${closed.length})</summary><ul class="list">${closed.map(holdingRow).join('')}</ul></details>` : ''}
   `;
   el.querySelectorAll('[data-asset]').forEach((b) => (b.onclick = () => openHolding(b.dataset.asset)));
@@ -145,7 +147,7 @@ function holdingRow(h) {
     <span class="grow"><div class="name">${esc(a.name || a.symbol)}</div><div class="sub money">${subtitle}</div></span>
     <span class="right">
       <div class="v money">${h.closed ? fmtSignedEur(h.realizedEur) : fmtEur(h.valueEur)}</div>
-      <div class="sub ${tone(h.closed ? h.realizedEur : h.unrealizedEur)}">${h.closed ? '' : fmtPct(h.unrealizedPct)}</div>
+      <div class="sub ${a.unvested ? 'flat' : tone(h.closed ? h.realizedEur : h.unrealizedEur)}">${h.closed ? '' : a.unvested ? 'vesting' : fmtPct(h.unrealizedPct)}</div>
     </span>
   </button></li>`;
 }
@@ -160,7 +162,7 @@ function openHolding(assetId) {
   openSheet(a.name || a.symbol, `
     <dl class="stats">
       <div><dt>Value</dt><dd class="money">${fmtEur(h.valueEur)}</dd></div>
-      <div><dt>Price</dt><dd>${fmtPrice(h.priceEur)}${h.priceSource === 'manual' ? ' <span class="badge">manual</span>' : h.priceSource === 'Saxo export' ? ' <span class="badge">from export</span>' : ''}</dd></div>
+      <div><dt>Price</dt><dd>${fmtPrice(h.priceEur)}${h.priceSource === 'manual' ? ' <span class="badge">manual</span>' : /export/.test(h.priceSource || '') ? ' <span class="badge">from export</span>' : ''}</dd></div>
       <div><dt>Quantity</dt><dd class="money">${fmtQty(h.quantity)}</dd></div>
       <div><dt>Avg. cost</dt><dd>${h.quantity ? fmtPrice(h.costEur / h.quantity) : '–'}</dd></div>
       <div><dt>Invested</dt><dd class="money">${fmtEur(h.costEur)}</dd></div>
@@ -185,7 +187,7 @@ function openHolding(assetId) {
         <label class="field"><span>Manual price (EUR)</span><input name="manualPriceEur" inputmode="decimal" value="${a.manualPriceEur ?? ''}" placeholder="auto"></label>
       </div>` : ''}
       <div class="btn-row">
-        ${!isCrypto && a.isin ? '<button type="button" class="btn secondary" data-find>Find ticker</button>' : ''}
+        ${!isCrypto && (a.isin || a.lookup) ? '<button type="button" class="btn secondary" data-find>Find ticker</button>' : ''}
         <button class="btn">Save</button>
       </div>
     </form>
@@ -269,7 +271,7 @@ function openTxDetail(id) {
       <div><dt>Total (EUR)</dt><dd>${fmtEur(t.totalEur)}</dd></div>
       <div><dt>Fees (EUR)</dt><dd>${fmtEur(t.feeEur || 0)}</dd></div>
     </dl>
-    <p class="hint">Source: ${esc(t.source || 'manual')}</p>
+    <p class="hint">Source: ${esc(t.source || 'manual')}${t.note ? ` · ${esc(t.note)}` : ''}</p>
     <button class="btn danger block" data-del>Delete transaction</button>
   `, (root) => {
     $('[data-del]', root).onclick = () => {
@@ -371,6 +373,7 @@ function openTransactionForm() {
 const BROKER_HELP = [
   { name: 'DEGIRO', steps: ['Open DEGIRO in a browser (the web version)', 'Inbox → Transactions', 'Choose a start date far in the past', 'Export → CSV'] },
   { name: 'Bitvavo', steps: ['Open Bitvavo in a browser', 'Account → Transaction history', 'Export → CSV (all time)'] },
+  { name: 'EquatePlus', steps: ['Log in at equateplus.com → Portfolio', 'Download / export the portfolio details (Excel)', 'Import the .xlsx here. Unvested RSUs are shown separately and not counted in your total'] },
   { name: 'Saxo', steps: ['Open Saxo (web or app) → Portfolio → Posities', 'Export the positions list as CSV', 'Import it here. Re-import a newer file any time: your Saxo positions are replaced, not added twice'] },
 ];
 
@@ -386,11 +389,12 @@ function renderImport() {
           <option value="degiro">DEGIRO</option>
           <option value="bitvavo">Bitvavo</option>
           <option value="saxo">Saxo (positions)</option>
+          <option value="equate">EquatePlus</option>
           <option value="generic">Portfolio template</option>
         </select>
       </label>
-      <label class="btn block" for="imp-file">Choose CSV file</label>
-      <input type="file" id="imp-file" accept=".csv,text/csv,text/plain" hidden>
+      <label class="btn block" for="imp-file">Choose file (CSV or Excel)</label>
+      <input type="file" id="imp-file" accept=".csv,.xlsx,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
       <div id="imp-result"></div>
     </div>
 
@@ -409,8 +413,7 @@ function renderImport() {
     if (!file) return;
     const out = $('#imp-result', el);
     try {
-      const text = await file.text();
-      const result = importText(text, $('#imp-broker', el).value || undefined);
+      const result = await importFile(file, $('#imp-broker', el).value || undefined);
       const { added, duplicates, replaced } = mergeImport(state, result);
       persist();
       out.innerHTML = `
@@ -435,7 +438,7 @@ function renderImport() {
 async function autoFindTickers() {
   const s = state.settings;
   if (!(s.finnhubKey || (s.stockProvider === 'yahoo' && s.proxyUrl))) return;
-  const todo = Object.values(state.assets).filter((a) => a.type !== 'crypto' && !a.symbol && a.isin);
+  const todo = Object.values(state.assets).filter((a) => a.type !== 'crypto' && !a.symbol && (a.isin || a.lookup));
   for (const a of todo) {
     try {
       const found = await findTicker(a, s);
@@ -477,7 +480,7 @@ function renderSettings() {
       </div>
       <div class="btn-row"><button class="btn danger" data-wipe>Delete all data</button></div>
     </div>
-    <p class="hint" style="text-align:center;margin-top:18px">Portfolio · v0.2</p>`;
+    <p class="hint" style="text-align:center;margin-top:18px">Portfolio · v0.3</p>`;
 
   $('#set-form', el).onsubmit = (e) => {
     e.preventDefault();
