@@ -1,0 +1,7 @@
+Timezone,Date,Time,Type,Currency,Amount,Quote Currency,Quote Price,Received / Paid Currency,Received / Paid Amount,Fee currency,Fee amount,Status,Transaction ID,Address
+Europe/Amsterdam,2024-01-10,09:00:00,deposit,EUR,1000,,,,,,,Completed,t0,
+Europe/Amsterdam,2024-01-10,09:05:00,buy,BTC,0.02,EUR,40000,EUR,-800,EUR,2,Completed,t1,
+Europe/Amsterdam,2024-02-01,12:00:00,buy,ETH,0.5,EUR,2000,EUR,-1000,EUR,2.5,Completed,t2,
+Europe/Amsterdam,2024-03-01,12:00:00,staking,ETH,0.01,,,,,,,Completed,t3,
+Europe/Amsterdam,2024-04-01,12:00:00,sell,BTC,-0.01,EUR,60000,EUR,600,EUR,1.5,Completed,t4,
+Europe/Amsterdam,2024-04-02,12:00:00,buy,SOL,1,EUR,150,EUR,-150,EUR,0.38,Canceled,t5,
